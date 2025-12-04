@@ -279,6 +279,7 @@ namespace Game.Domain.Tests
             state.Player2ElephantsPlaced = 4;
             state.Player2TigersPlaced = 4;
             state.Player2MicePlaced = 4;
+            state.Player2ScorpionsPlaced = 2;
 
             // Prepare 12 valid positions for Player1 on their first two rows (rows 5 and 6)
             var spots = new System.Collections.Generic.List<Position>();
@@ -301,7 +302,11 @@ namespace Game.Domain.Tests
                 var ok = GameLogic.TryPlacePiece(state, pos, type, out var error);
                 Assert.True(ok, error);
             }
-
+             // 2 Scorpions
+            for (int i = 0; i < 2; i++)
+            {
+                PlaceForPlayer1(PieceType.Scorpion);
+            }
             // 4 Elephants
             for (int i = 0; i < 4; i++)
             {

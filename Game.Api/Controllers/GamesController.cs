@@ -106,7 +106,7 @@ namespace Game.Api.Controllers
         public int ToCol { get; set; }
     }
 
-    // response DTO
+        // response DTO
 
     public class GameStateDto
     {
@@ -115,6 +115,8 @@ namespace Game.Api.Controllers
         public string Status { get; set; } = "";
         public string Winner { get; set; } = "";
         public CellDto[][] Cells { get; set; } = Array.Empty<CellDto[]>();
+        public FlagDto Player1Flag { get; set; }
+        public FlagDto Player2Flag { get; set; }
 
         public static GameStateDto FromDomain(GameState state)
         {
@@ -150,11 +152,22 @@ namespace Game.Api.Controllers
                 CurrentPlayer = state.CurrentPlayer.ToString(),
                 Status = state.Status.ToString(),
                 Winner = state.Winner?.ToString() ?? "",
-                Cells = cells
+                Cells = cells,
+                Player1Flag = new FlagDto
+                {
+                    Row = state.Player1FlagPos.Row,
+                    Col = state.Player1FlagPos.Col,
+                    OnBoard = state.IsPlayer1FlagOnBoard
+                },
+                Player2Flag = new FlagDto
+                {
+                    Row = state.Player2FlagPos.Row,
+                    Col = state.Player2FlagPos.Col,
+                    OnBoard = state.IsPlayer2FlagOnBoard
+                }
             };
         }
     }
-
 
     public class CellDto
     {
@@ -163,4 +176,12 @@ namespace Game.Api.Controllers
         public int Lives { get; set; }
         public bool HasEnemyFlag { get; set; }
     }
+
+    public class FlagDto
+    {
+        public int Row { get; set; }
+        public int Col { get; set; }
+        public bool OnBoard { get; set; }
+    }
 }
+

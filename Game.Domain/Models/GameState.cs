@@ -14,7 +14,8 @@ namespace Game.Domain.Models
         None = 0,
         Elephant = 1,
         Tiger = 2,
-        Mouse = 3
+        Mouse = 3,
+        Scorpion = 4
     }
 
     public enum GameStatus
@@ -90,19 +91,23 @@ namespace Game.Domain.Models
         public int Player1ElephantsPlaced { get; set; }
         public int Player1TigersPlaced { get; set; }
         public int Player1MicePlaced { get; set; }
+        public int Player1ScorpionsPlaced { get; set; }
 
         public int Player2ElephantsPlaced { get; set; }
         public int Player2TigersPlaced { get; set; }
         public int Player2MicePlaced { get; set; }
+        public int Player2ScorpionsPlaced { get; set; }
 
         public bool Player1PlacementDone =>
             Player1ElephantsPlaced >= 4 &&
             Player1TigersPlaced >= 4 &&
+            Player1ScorpionsPlaced >= 2 &&
             Player1MicePlaced >= 4;
 
         public bool Player2PlacementDone =>
             Player2ElephantsPlaced >= 4 &&
             Player2TigersPlaced >= 4 &&
+            Player2ScorpionsPlaced >= 2 &&
             Player2MicePlaced >= 4;
 
         // home positions of each players own flag

@@ -44,6 +44,7 @@ namespace Game.Domain
                     PieceType.Elephant => state.Player1ElephantsPlaced >= 4,
                     PieceType.Tiger => state.Player1TigersPlaced >= 4,
                     PieceType.Mouse => state.Player1MicePlaced >= 4,
+                    PieceType.Scorpion => state.Player1ScorpionsPlaced >= 2,
                     _ => true
                 },
                 Player.Player2 => type switch
@@ -51,6 +52,7 @@ namespace Game.Domain
                     PieceType.Elephant => state.Player2ElephantsPlaced >= 4,
                     PieceType.Tiger => state.Player2TigersPlaced >= 4,
                     PieceType.Mouse => state.Player2MicePlaced >= 4,
+                    PieceType.Scorpion => state.Player2ScorpionsPlaced >= 2,
                     _ => true
                 },
                 _ => true
@@ -72,6 +74,9 @@ namespace Game.Domain
                     case PieceType.Mouse:
                         state.Player1MicePlaced++;
                         break;
+                    case PieceType.Scorpion:
+                        state.Player1ScorpionsPlaced++;
+                        break;
                 }
             }
             else if (player == Player.Player2)
@@ -86,6 +91,9 @@ namespace Game.Domain
                         break;
                     case PieceType.Mouse:
                         state.Player2MicePlaced++;
+                        break;
+                    case PieceType.Scorpion:
+                        state.Player2ScorpionsPlaced++;
                         break;
                 }
             }
@@ -227,79 +235,104 @@ namespace Game.Domain
                     return false;
                 }
 
-                bool attackerWins = AttackerBeatsDefender(movingPiece.Type, targetPiece.Type);
-                bool defenderWins = AttackerBeatsDefender(targetPiece.Type, movingPiece.Type);
-
-                if (!attackerWins && !defenderWins)
+                // special rule, if any side is Scorpion, both die regardless of lives
+                if (movingPiece.Type == PieceType.Scorpion || targetPiece.Type == PieceType.Scorpion)
                 {
-                    // same type, or neither has advantage, both lose 1 life
-                    movingPiece.TakeHit();
-                    targetPiece.TakeHit();
-
-                    // handle deaths
-                    if (movingPiece.IsDead)
+                    // kill attacker
+                    while (!movingPiece.IsDead)
                     {
-                        state.Board.SetPiece(from.Row, from.Col, null);
+                        movingPiece.TakeHit();
                     }
 
-                    if (targetPiece.IsDead)
+                    // kill defender
+                    while (!targetPiece.IsDead)
                     {
-                        state.Board.SetPiece(to.Row, to.Col, null);
+                        targetPiece.TakeHit();
                     }
 
-                    if (!movingPiece.IsDead && targetPiece.IsDead)
+                    // remove both from the board
+                    state.Board.SetPiece(from.Row, from.Col, null);
+                    state.Board.SetPiece(to.Row, to.Col, null);
+
+                    finalPieceAtTo = null;
+                }
+                else
+                {
+                    bool attackerWins = AttackerBeatsDefender(movingPiece.Type, targetPiece.Type);
+                    bool defenderWins = AttackerBeatsDefender(targetPiece.Type, movingPiece.Type);
+
+                    if (!attackerWins && !defenderWins)
                     {
-                        // attacker moves into now empty cell
-                        finalPieceAtTo = movingPiece;
-                        state.Board.SetPiece(from.Row, from.Col, null);
-                    }
-                    else if (!targetPiece.IsDead)
-                    {
-                        // defender stays, attacker either died or bounced back with equal lives
-                        finalPieceAtTo = targetPiece;
-                        // attacker already removed if dead
-                        if (!movingPiece.IsDead)
+                        // same type, or neither has advantage, both lose 1 life
+                        movingPiece.TakeHit();
+                        targetPiece.TakeHit();
+
+                        // handle deaths
+                        if (movingPiece.IsDead)
                         {
-                            // if you prefer attacker to stay in place on tie and both alive, comment this out
-                            state.Board.SetPiece(from.Row, from.Col, movingPiece);
+                            state.Board.SetPiece(from.Row, from.Col, null);
+                        }
+
+                        if (targetPiece.IsDead)
+                        {
+                            state.Board.SetPiece(to.Row, to.Col, null);
+                        }
+
+                        if (!movingPiece.IsDead && targetPiece.IsDead)
+                        {
+                            // attacker moves into now empty cell
+                            finalPieceAtTo = movingPiece;
+                            state.Board.SetPiece(from.Row, from.Col, null);
+                        }
+                        else if (!targetPiece.IsDead)
+                        {
+                            // defender stays, attacker either died or bounced back with equal lives
+                            finalPieceAtTo = targetPiece;
+                            // attacker already removed if dead
+                            if (!movingPiece.IsDead)
+                            {
+                                // if you prefer attacker to stay in place on tie and both alive, comment this out
+                                state.Board.SetPiece(from.Row, from.Col, movingPiece);
+                            }
+                        }
+                    }
+                    else if (attackerWins)
+                    {
+                        // attacker hits defender
+                        targetPiece.TakeHit();
+                        if (targetPiece.IsDead)
+                        {
+                            // defender dies, attacker moves into cell
+                            state.Board.SetPiece(to.Row, to.Col, null);
+                            state.Board.SetPiece(from.Row, from.Col, null);
+                            finalPieceAtTo = movingPiece;
+                        }
+                        else
+                        {
+                            // defender survives with fewer lives, attacker stays in place
+                            finalPieceAtTo = targetPiece;
+                            // attacker remains at from
+                        }
+                    }
+                    else if (defenderWins)
+                    {
+                        // defender hits attacker
+                        movingPiece.TakeHit();
+                        if (movingPiece.IsDead)
+                        {
+                            // attacker dies, defender stays
+                            state.Board.SetPiece(from.Row, from.Col, null);
+                            finalPieceAtTo = targetPiece;
+                        }
+                        else
+                        {
+                            // attacker survives with fewer lives, no one moves
+                            finalPieceAtTo = targetPiece;
                         }
                     }
                 }
-                else if (attackerWins)
-                {
-                    // attacker hits defender
-                    targetPiece.TakeHit();
-                    if (targetPiece.IsDead)
-                    {
-                        // defender dies, attacker moves into cell
-                        state.Board.SetPiece(to.Row, to.Col, null);
-                        state.Board.SetPiece(from.Row, from.Col, null);
-                        finalPieceAtTo = movingPiece;
-                    }
-                    else
-                    {
-                        // defender survives with fewer lives, attacker stays in place
-                        finalPieceAtTo = targetPiece;
-                        // attacker remains at from
-                    }
-                }
-                else if (defenderWins)
-                {
-                    // defender hits attacker
-                    movingPiece.TakeHit();
-                    if (movingPiece.IsDead)
-                    {
-                        // attacker dies, defender stays
-                        state.Board.SetPiece(from.Row, from.Col, null);
-                        finalPieceAtTo = targetPiece;
-                    }
-                    else
-                    {
-                        // attacker survives with fewer lives, no one moves
-                        finalPieceAtTo = targetPiece;
-                    }
-                }
             }
+
 
             // update board cell if we have a moving piece that ended at "to"
             if (finalPieceAtTo == movingPiece && state.Board.GetPiece(to.Row, to.Col) != movingPiece)
