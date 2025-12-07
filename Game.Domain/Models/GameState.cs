@@ -97,7 +97,8 @@ namespace Game.Domain.Models
         public int Player2TigersPlaced { get; set; }
         public int Player2MicePlaced { get; set; }
         public int Player2ScorpionsPlaced { get; set; }
-
+        public string Player1Name { get; set; } = string.Empty;
+        public string Player2Name { get; set; } = string.Empty;
         public bool Player1PlacementDone =>
             Player1ElephantsPlaced >= 4 &&
             Player1TigersPlaced >= 4 &&

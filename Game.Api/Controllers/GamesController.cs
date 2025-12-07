@@ -87,6 +87,36 @@ namespace Game.Api.Controllers
 
             return Ok(GameStateDto.FromDomain(state));
         }
+        // POST api/games/{id}/register
+        // body, { "side": "Player1", "name": "Roy" }
+        [HttpPost("{id:guid}/register")]
+        public ActionResult<GameStateDto> Register(Guid id, [FromBody] RegisterPlayerRequest request)
+        {
+            if (!_store.TryGet(id, out var state))
+            {
+                return NotFound();
+            }
+
+            if (!Enum.TryParse<Player>(request.Side, ignoreCase: true, out var side) ||
+                side == Player.None)
+            {
+                return BadRequest("Invalid side");
+            }
+
+            var trimmedName = request.Name?.Trim() ?? "";
+
+            if (side == Player.Player1)
+            {
+                state.Player1Name = trimmedName;
+            }
+            else if (side == Player.Player2)
+            {
+                state.Player2Name = trimmedName;
+            }
+
+            return Ok(GameStateDto.FromDomain(state));
+        }
+
     }
 
     // request DTOs
@@ -105,8 +135,13 @@ namespace Game.Api.Controllers
         public int ToRow { get; set; }
         public int ToCol { get; set; }
     }
+    public class RegisterPlayerRequest
+    {
+        public string Side { get; set; } = ""; // "Player1" or "Player2"
+        public string Name { get; set; } = "";
+    }
 
-        // response DTO
+    // response DTO
 
     public class GameStateDto
     {
@@ -117,6 +152,8 @@ namespace Game.Api.Controllers
         public CellDto[][] Cells { get; set; } = Array.Empty<CellDto[]>();
         public FlagDto Player1Flag { get; set; }
         public FlagDto Player2Flag { get; set; }
+        public string Player1Name { get; set; } = "";
+        public string Player2Name { get; set; } = "";
 
         public static GameStateDto FromDomain(GameState state)
         {
@@ -164,7 +201,9 @@ namespace Game.Api.Controllers
                     Row = state.Player2FlagPos.Row,
                     Col = state.Player2FlagPos.Col,
                     OnBoard = state.IsPlayer2FlagOnBoard
-                }
+                },
+                Player1Name = state.Player1Name,
+                Player2Name = state.Player2Name
             };
         }
     }

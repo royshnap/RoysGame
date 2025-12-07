@@ -64,3 +64,37 @@ export async function movePiece(gameId, fromRow, fromCol, toRow, toCol) {
 
   return await res.json();
 }
+
+export async function getGame(gameId) {
+  const url = `${API_BASE}/games/${gameId}`;
+  console.log("Calling getGame, ", url);
+
+  const res = await fetch(url);
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `getGame failed, ${res.status}`);
+  }
+
+  return await res.json();
+}
+
+export async function registerPlayer(gameId, side, name) {
+  const url = `${API_BASE}/games/${gameId}/register`;
+  console.log("Calling registerPlayer, ", url, side, name);
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ side, name }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `registerPlayer failed, ${res.status}`);
+  }
+
+  return await res.json();
+}
+
+

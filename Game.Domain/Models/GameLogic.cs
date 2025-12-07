@@ -108,14 +108,6 @@ namespace Game.Domain
                 return false;
             }
 
-            var player = state.CurrentPlayer;
-
-            if (player == Player.None)
-            {
-                error = "No current player";
-                return false;
-            }
-
             if (type == PieceType.None)
             {
                 error = "Invalid piece type";
@@ -128,6 +120,25 @@ namespace Game.Domain
                 return false;
             }
 
+            // decide which player is placing based on the row, independent of CurrentPlayer
+            Player player;
+            if (pos.Row <= 1)
+            {
+                // top two rows are always Player2 side (yellow)
+                player = Player.Player2;
+            }
+            else if (pos.Row >= Board.Size - 2)
+            {
+                // bottom two rows are always Player1 side (purple)
+                player = Player.Player1;
+            }
+            else
+            {
+                error = "You can place pieces only on your first two rows";
+                return false;
+            }
+
+            // extra safety check, uses the existing helper
             if (!IsPlacementRow(player, pos.Row))
             {
                 error = "You can place pieces only on your first two rows";
@@ -151,20 +162,17 @@ namespace Game.Domain
             state.Board.SetPiece(pos.Row, pos.Col, newPiece);
             IncrementTypeCounter(state, player, type);
 
-            // check if this player finished placing all 12 pieces
+            // when both players have finished placement, start the game and then turns begin
             if (state.Player1PlacementDone && state.Player2PlacementDone)
             {
                 state.Status = GameStatus.InProgress;
-                state.CurrentPlayer = Player.Player1; // Player1 starts
-            }
-            else
-            {
-                // switch turn to the other player
-                state.CurrentPlayer = player == Player.Player1 ? Player.Player2 : Player.Player1;
+                state.CurrentPlayer = Player.Player1; // or Player.Player2 if you want yellow to start
             }
 
+            // no turn switching during placement
             return true;
         }
+
 
         /*public static bool IsOnOwnSide(Player player, Position pos)
         {
