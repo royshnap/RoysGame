@@ -1,8 +1,40 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import * as signalR from "@microsoft/signalr";
 import { createGame, placePiece, movePiece, getGame, registerPlayer } from "./api";
 
 const COLOR_PURPLE = "#a855f7";
 const COLOR_YELLOW = "#facc15";
+
+const INITIAL_PIECES = {
+  Elephant: 4,
+  Tiger: 4,
+  Mouse: 4,
+  Scorpion: 2,
+};
+
+function computeRemainingPieces(game, mySide) {
+  // default: full pool
+  const remaining = { ...INITIAL_PIECES };
+
+  if (!game || !game.cells || !mySide) {
+    return remaining;
+  }
+
+  for (let r = 0; r < game.cells.length; r++) {
+    for (let c = 0; c < game.cells[r].length; c++) {
+      const cell = game.cells[r][c];
+      if (!cell) continue;
+
+      // count only my pieces in the pool types
+      if (cell.owner === mySide && remaining[cell.type] != null) {
+        remaining[cell.type] = Math.max(0, remaining[cell.type] - 1);
+      }
+    }
+  }
+
+  return remaining;
+}
+
 
 function getSideColors(gameId) {
   // top side (Player2) is always yellow
@@ -38,8 +70,26 @@ function sideLabel(side, sideColors) {
   return side;
 }
 
-function cellDisplay(cell) {
+function cellDisplay(cell, mySide) {
   if (!cell) return "·";
+
+  const owner = cell.owner;               // "Player1" or "Player2"
+  const r1 = cell.revealedToPlayer1;      // booleans from server
+  const r2 = cell.revealedToPlayer2;
+
+  // opponent piece that is not revealed to me, hide its letter
+  if (
+    mySide &&
+    owner &&
+    owner !== mySide &&
+    ((mySide === "Player1" && !r1) ||
+      (mySide === "Player2" && !r2))
+  ) {
+    return "";
+  }
+
+  if (!cell.type) return "";
+
   const letter = cell.type[0];
   return letter.toUpperCase();
 }
@@ -54,10 +104,62 @@ function App() {
 
   const [mySide, setMySide] = useState(null); // "Player1" or "Player2"
   const [myName, setMyName] = useState("");   // local name only
+  const connectionRef = useRef(null);  
+
+    // create SignalR connection once
+    useEffect(() => {
+      const connection = new signalR.HubConnectionBuilder()
+        .withUrl("http://localhost:5000/gamehub")
+        .withAutomaticReconnect()
+        .configureLogging(signalR.LogLevel.Information)
+        .build();
+
+      connectionRef.current = connection;
+
+      // when server broadcasts a game update, replace local state
+      connection.on("GameUpdated", (dto) => {
+        console.log("GameUpdated from hub", dto);
+        setGame(dto);
+      });
+
+      connection.start()
+        .then(() => {
+          console.log("SignalR connected");
+        })
+        .catch((err) => {
+          console.error("SignalR connection error", err);
+        });
+
+      return () => {
+        connection.stop();
+      };
+    }, []);
+
+  // when we have a game id, join that game group on the hub
+  useEffect(() => {
+    if (!game || !game.id) return;
+
+    const connection = connectionRef.current;
+    if (!connection) return;
+
+    // if not connected yet, do nothing, the user action will still work via HTTP
+    if (connection.state !== signalR.HubConnectionState.Connected) {
+      return;
+    }
+
+    connection.invoke("JoinGame", game.id.toString())
+      .then(() => {
+        console.log("Joined hub group", game.id);
+      })
+      .catch((err) => {
+        console.error("JoinGame failed", err);
+      });
+  }, [game?.id]);
+
 
   useEffect(() => {
     if (!game || !game.id) return;
-    if (game.winner) return; // stop refreshing after win
+    if (game.winner) return;
 
     const gameId = game.id;
 
@@ -67,12 +169,12 @@ function App() {
         setGame(fresh);
       } catch (err) {
         console.error("Polling getGame failed, ", err);
-        // do not set error here, so we do not spam the UI
       }
-    }, 1000); // every second
+    }, 1000);
 
     return () => clearInterval(interval);
   }, [game?.id, game?.winner]);
+
 
   async function handleCreateGame() {
     try {
@@ -243,7 +345,7 @@ function App() {
       }}
     >
 
-      <h1>Roy s Flag Game</h1>
+      <h1>Jungle Catch</h1>
 
       <button
         onClick={handleCreateGame}
@@ -488,18 +590,34 @@ function App() {
 
         {(() => {
           const sideColors = getSideColors(game.id);
+          const remaining = computeRemainingPieces(game, mySide);
 
           return (
-            <BoardView
-              cells={game.cells}
-              onCellClick={handleCellClick}
-              selectedFrom={selectedFrom}
-              player1Flag={game.player1Flag}
-              player2Flag={game.player2Flag}
-              sideColors={sideColors}
-            />
+            <div
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: "1.5rem",
+                marginTop: "0.75rem",
+              }}
+            >
+              {game.status === "Placement" && mySide && (
+                <PieceCounter remaining={remaining} />
+              )}
+
+              <BoardView
+                cells={game.cells}
+                onCellClick={handleCellClick}
+                selectedFrom={selectedFrom}
+                player1Flag={game.player1Flag}
+                player2Flag={game.player2Flag}
+                sideColors={sideColors}
+                mySide={mySide}
+              />
+            </div>
           );
         })()}
+
         </div>
       )}
     </div>
@@ -530,7 +648,7 @@ function Hearts({ lives }) {
       style={{
         fontSize: "0.7rem",
         marginTop: 2,
-        color: "#ef4444", // bright red
+        color: "#ef4444", 
       }}
     >
       {hearts}
@@ -538,7 +656,44 @@ function Hearts({ lives }) {
   );
 }
 
-function BoardView({ cells, onCellClick, selectedFrom, player1Flag, player2Flag, sideColors }) {
+function PieceCounter({ remaining }) {
+  const order = ["Elephant", "Tiger", "Mouse", "Scorpion"];
+
+  return (
+    <div
+      style={{
+        minWidth: 140,
+        padding: "0.75rem 0.75rem",
+        background: "#020617",
+        borderRadius: "0.75rem",
+        border: "1px solid #1f2937",
+        color: "white",
+        fontSize: "0.85rem",
+      }}
+    >
+      <div style={{ fontWeight: "bold", marginBottom: "0.5rem" }}>
+        Your pieces
+      </div>
+      {order.map((type) => (
+        <div
+          key={type}
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "0.25rem",
+            opacity: remaining[type] === 0 ? 0.4 : 1,
+          }}
+        >
+          <span>{type}</span>
+          <span>{remaining[type]}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function BoardView({ cells, onCellClick, selectedFrom, player1Flag, player2Flag, sideColors, mySide}) {
   if (!cells) return null;
 
   const size = cells.length;
@@ -579,7 +734,7 @@ function BoardView({ cells, onCellClick, selectedFrom, player1Flag, player2Flag,
       >
         {cells.map((row, r) =>
           row.map((cell, c) => {
-            const text = cellDisplay(cell);
+            const text = cellDisplay(cell, mySide);
             const isP1 = cell && cell.owner === "Player1";
             const isSelected =
               selectedFrom && selectedFrom.row === r && selectedFrom.col === c;

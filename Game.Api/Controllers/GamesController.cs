@@ -1,9 +1,12 @@
 using System;
 using System.Linq;
+using System.Threading.Tasks;
+using Game.Api.Hubs;
 using Game.Api.Services;
 using Game.Domain;
 using Game.Domain.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 
 namespace Game.Api.Controllers
 {
@@ -12,10 +15,12 @@ namespace Game.Api.Controllers
     public class GamesController : ControllerBase
     {
         private readonly IGameStore _store;
+        private readonly IHubContext<GameHub> _hub;
 
-        public GamesController(IGameStore store)
+        public GamesController(IGameStore store, IHubContext<GameHub> hub)
         {
             _store = store;
+            _hub = hub;
         }
 
         // POST api/games
@@ -42,8 +47,8 @@ namespace Game.Api.Controllers
 
         // POST api/games/{id}/place
         // body: { "row": 6, "col": 0, "pieceType": "Elephant" }
-        [HttpPost("{id:guid}/place")]
-        public ActionResult<GameStateDto> PlacePiece(Guid id, [FromBody] PlacePieceRequest request)
+       [HttpPost("{id:guid}/place")]
+        public async Task<ActionResult<GameStateDto>> PlacePiece(Guid id, [FromBody] PlacePieceRequest request)
         {
             if (!_store.TryGet(id, out var state))
             {
@@ -63,13 +68,18 @@ namespace Game.Api.Controllers
                 return BadRequest(error);
             }
 
-            return Ok(GameStateDto.FromDomain(state));
+            var dto = GameStateDto.FromDomain(state);
+
+            // notify all clients in this game group
+            await _hub.Clients.Group(id.ToString()).SendAsync("GameUpdated", dto);
+
+            return Ok(dto);
         }
 
         // POST api/games/{id}/move
         // body: { "fromRow": 3, "fromCol": 3, "toRow": 3, "toCol": 4 }
         [HttpPost("{id:guid}/move")]
-        public ActionResult<GameStateDto> Move(Guid id, [FromBody] MoveRequest request)
+        public async Task<ActionResult<GameStateDto>> Move(Guid id, [FromBody] MoveRequest request)
         {
             if (!_store.TryGet(id, out var state))
             {
@@ -85,12 +95,17 @@ namespace Game.Api.Controllers
                 return BadRequest(error);
             }
 
-            return Ok(GameStateDto.FromDomain(state));
+            var dto = GameStateDto.FromDomain(state);
+
+            await _hub.Clients.Group(id.ToString()).SendAsync("GameUpdated", dto);
+
+            return Ok(dto);
         }
+
         // POST api/games/{id}/register
         // body, { "side": "Player1", "name": "Roy" }
-        [HttpPost("{id:guid}/register")]
-        public ActionResult<GameStateDto> Register(Guid id, [FromBody] RegisterPlayerRequest request)
+       [HttpPost("{id:guid}/register")]
+        public async Task<ActionResult<GameStateDto>> Register(Guid id, [FromBody] RegisterPlayerRequest request)
         {
             if (!_store.TryGet(id, out var state))
             {
@@ -114,8 +129,13 @@ namespace Game.Api.Controllers
                 state.Player2Name = trimmedName;
             }
 
-            return Ok(GameStateDto.FromDomain(state));
+            var dto = GameStateDto.FromDomain(state);
+
+            await _hub.Clients.Group(id.ToString()).SendAsync("GameUpdated", dto);
+
+            return Ok(dto);
         }
+
 
     }
 
@@ -135,6 +155,7 @@ namespace Game.Api.Controllers
         public int ToRow { get; set; }
         public int ToCol { get; set; }
     }
+
     public class RegisterPlayerRequest
     {
         public string Side { get; set; } = ""; // "Player1" or "Player2"
@@ -177,7 +198,9 @@ namespace Game.Api.Controllers
                             Owner = piece.Owner.ToString(),
                             Type = piece.Type.ToString(),
                             Lives = piece.Lives,
-                            HasEnemyFlag = piece.HasEnemyFlag
+                            HasEnemyFlag = piece.HasEnemyFlag,
+                            RevealedToPlayer1 = piece.RevealedToPlayer1,
+                            RevealedToPlayer2 = piece.RevealedToPlayer2
                         };
                     }
                 }
@@ -214,6 +237,8 @@ namespace Game.Api.Controllers
         public string Type { get; set; } = "";
         public int Lives { get; set; }
         public bool HasEnemyFlag { get; set; }
+        public bool RevealedToPlayer1 { get; set; }
+        public bool RevealedToPlayer2 { get; set; }
     }
 
     public class FlagDto
@@ -223,4 +248,3 @@ namespace Game.Api.Controllers
         public bool OnBoard { get; set; }
     }
 }
-

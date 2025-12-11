@@ -242,6 +242,11 @@ namespace Game.Domain
                     error = "You cannot capture your own piece";
                     return false;
                 }
+                // both pieces become known to both players when they fight
+                movingPiece.RevealedToPlayer1 = true;
+                movingPiece.RevealedToPlayer2 = true;
+                targetPiece.RevealedToPlayer1 = true;
+                targetPiece.RevealedToPlayer2 = true;
 
                 // special rule, if any side is Scorpion, both die regardless of lives
                 if (movingPiece.Type == PieceType.Scorpion || targetPiece.Type == PieceType.Scorpion)

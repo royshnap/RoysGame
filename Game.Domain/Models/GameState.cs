@@ -44,6 +44,10 @@ namespace Game.Domain.Models
         public int Lives { get; private set; }
         public bool HasEnemyFlag { get; set; }
 
+        // new
+        public bool RevealedToPlayer1 { get; set; }
+        public bool RevealedToPlayer2 { get; set; }
+
         public const int MaxLives = 3;
 
         public Piece(Player owner, PieceType type)
@@ -51,6 +55,18 @@ namespace Game.Domain.Models
             Owner = owner;
             Type = type;
             Lives = MaxLives;
+
+            // owner always knows their own piece
+            if (owner == Player.Player1)
+            {
+                RevealedToPlayer1 = true;
+                RevealedToPlayer2 = false;
+            }
+            else if (owner == Player.Player2)
+            {
+                RevealedToPlayer1 = false;
+                RevealedToPlayer2 = true;
+            }
         }
 
         public void TakeHit(int damage = 1)

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Game.Api.Hubs;
 
 namespace Game.Api
 {
@@ -19,6 +20,8 @@ namespace Game.Api
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddControllers();
+            services.AddSignalR();
+
 
             // CORS, allow React dev server
             services.AddCors(options =>
@@ -28,7 +31,8 @@ namespace Game.Api
                     policy
                         .WithOrigins("http://localhost:5173")
                         .AllowAnyHeader()
-                        .AllowAnyMethod();
+                        .AllowAnyMethod()
+                        .AllowCredentials();
                 });
             });
 
@@ -60,6 +64,7 @@ namespace Game.Api
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
+                endpoints.MapHub<GameHub>("/gamehub");
             });
         }
     }
