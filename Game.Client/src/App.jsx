@@ -1,6 +1,16 @@
+
 import { useState, useEffect, useRef } from "react";
 import * as signalR from "@microsoft/signalr";
 import { createGame, placePiece, movePiece, getGame, registerPlayer } from "./api";
+
+import PurpleElephant from "./assets/purpleElephant.png";
+import YellowElephant from "./assets/yellowElephant.png";
+import PurpleMouse from "./assets/purpleMouse.png";
+import YellowMouse from "./assets/yellowMouse.png";
+import PurpleTiger from "./assets/purpleTiger.png";
+import YellowTiger from "./assets/yellowTiger.png";
+import PurpleScorpion from "./assets/purpleScorpion.png";
+import YellowScorpion from "./assets/yellowScorpion.png";
 
 const COLOR_PURPLE = "#a855f7";
 const COLOR_YELLOW = "#facc15";
@@ -10,6 +20,21 @@ const INITIAL_PIECES = {
   Tiger: 4,
   Mouse: 4,
   Scorpion: 2,
+};
+
+const PIECE_IMAGES = {
+  Player1: {
+    Elephant: PurpleElephant,
+    Mouse: PurpleMouse,
+    Tiger: PurpleTiger,
+    Scorpion: PurpleScorpion
+  },
+  Player2: {
+    Elephant: YellowElephant,
+    Mouse: YellowMouse,
+    Tiger: YellowTiger,
+    Scorpion: YellowScorpion
+  },
 };
 
 function computeRemainingPieces(game, mySide) {
@@ -34,7 +59,6 @@ function computeRemainingPieces(game, mySide) {
 
   return remaining;
 }
-
 
 function getSideColors(gameId) {
   // top side (Player2) is always yellow
@@ -73,8 +97,8 @@ function sideLabel(side, sideColors) {
 function cellDisplay(cell, mySide) {
   if (!cell) return "·";
 
-  const owner = cell.owner;               // "Player1" or "Player2"
-  const r1 = cell.revealedToPlayer1;      // booleans from server
+  const owner = cell.owner; // "Player1" or "Player2"
+  const r1 = cell.revealedToPlayer1; // booleans from server
   const r2 = cell.revealedToPlayer2;
 
   // opponent piece that is not revealed to me, hide its letter
@@ -95,7 +119,7 @@ function cellDisplay(cell, mySide) {
 }
 
 function App() {
- const [game, setGame] = useState(null);
+  const [game, setGame] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedPiece, setSelectedPiece] = useState("Elephant");
@@ -103,37 +127,38 @@ function App() {
   const [joinId, setJoinId] = useState("");
 
   const [mySide, setMySide] = useState(null); // "Player1" or "Player2"
-  const [myName, setMyName] = useState("");   // local name only
-  const connectionRef = useRef(null);  
+  const [myName, setMyName] = useState(""); // local name only
+  const connectionRef = useRef(null);
 
-    // create SignalR connection once
-    useEffect(() => {
-      const connection = new signalR.HubConnectionBuilder()
-        .withUrl("http://localhost:5000/gamehub")
-        .withAutomaticReconnect()
-        .configureLogging(signalR.LogLevel.Information)
-        .build();
+  // create SignalR connection once
+  useEffect(() => {
+    const connection = new signalR.HubConnectionBuilder()
+      .withUrl("http://localhost:5000/gamehub")
+      .withAutomaticReconnect()
+      .configureLogging(signalR.LogLevel.Information)
+      .build();
 
-      connectionRef.current = connection;
+    connectionRef.current = connection;
 
-      // when server broadcasts a game update, replace local state
-      connection.on("GameUpdated", (dto) => {
-        console.log("GameUpdated from hub", dto);
-        setGame(dto);
+    // when server broadcasts a game update, replace local state
+    connection.on("GameUpdated", (dto) => {
+      console.log("GameUpdated from hub", dto);
+      setGame(dto);
+    });
+
+    connection
+      .start()
+      .then(() => {
+        console.log("SignalR connected");
+      })
+      .catch((err) => {
+        console.error("SignalR connection error", err);
       });
 
-      connection.start()
-        .then(() => {
-          console.log("SignalR connected");
-        })
-        .catch((err) => {
-          console.error("SignalR connection error", err);
-        });
-
-      return () => {
-        connection.stop();
-      };
-    }, []);
+    return () => {
+      connection.stop();
+    };
+  }, []);
 
   // when we have a game id, join that game group on the hub
   useEffect(() => {
@@ -147,7 +172,8 @@ function App() {
       return;
     }
 
-    connection.invoke("JoinGame", game.id.toString())
+    connection
+      .invoke("JoinGame", game.id.toString())
       .then(() => {
         console.log("Joined hub group", game.id);
       })
@@ -155,7 +181,6 @@ function App() {
         console.error("JoinGame failed", err);
       });
   }, [game?.id]);
-
 
   useEffect(() => {
     if (!game || !game.id) return;
@@ -174,7 +199,6 @@ function App() {
 
     return () => clearInterval(interval);
   }, [game?.id, game?.winner]);
-
 
   async function handleCreateGame() {
     try {
@@ -244,7 +268,7 @@ function App() {
       return;
     }
 
-      // Placement phase, both players can place, but only on their own side
+    // Placement phase, both players can place, but only on their own side
     if (game.status === "Placement") {
       const size = game.cells.length;
 
@@ -273,8 +297,7 @@ function App() {
       return;
     }
 
-
-    // In-progress phase, now turns matter
+    // In progress phase, now turns matter
     if (game.status === "InProgress") {
       if (mySide && mySide !== game.currentPlayer) {
         setError("It is not your turn");
@@ -340,286 +363,318 @@ function App() {
         overflow: "auto",
         padding: "1rem",
         fontFamily: "system-ui, sans-serif",
-        background: "#0f172a",
+        background: "#057137ff",
         color: "white",
       }}
     >
-
       <h1>Jungle Catch</h1>
 
-      <button
-        onClick={handleCreateGame}
-        disabled={loading}
+      {/* Layout, board on left, all other text and controls on the right */}
+      <div
         style={{
-          padding: "0.5rem 1rem",
-          borderRadius: "0.5rem",
-          border: "none",
-          fontSize: "1rem",
-          cursor: "pointer",
-          background: "#22c55e",
+          marginTop: "1rem",
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "flex-start",
+          justifyContent: "center",
+          gap: "2rem",
+          width: "100%",
+          maxWidth: "1100px",
         }}
       >
-        {loading ? "Creating..." : "Create new game"}
-      </button>
-
-      <div style={{ marginTop: "0.5rem" }}>
-        <input
-          value={joinId}
-          onChange={(e) => setJoinId(e.target.value)}
-          placeholder="Paste game id to join"
-          style={{
-            width: "280px",
-            padding: "0.25rem 0.5rem",
-            borderRadius: "0.375rem",
-            border: "1px solid #4b5563",
-            background: "#020617",
-            color: "white",
-          }}
-        />
-
-        <button
-          onClick={handleJoinGame}
-          style={{
-            marginLeft: "0.5rem",
-            padding: "0.25rem 0.75rem",
-            borderRadius: "0.5rem",
-            border: "none",
-            cursor: "pointer",
-            background: "#38bdf8",
-          }}
-        >
-          Join game
-        </button>
-      </div>
-
-            <div style={{ marginTop: "0.75rem" }}>
-        <input
-          value={myName}
-          onChange={(e) => setMyName(e.target.value)}
-          placeholder="Your name"
-          style={{
-            width: "280px",
-            padding: "0.25rem 0.5rem",
-            borderRadius: "0.375rem",
-            border: "1px solid #4b5563",
-            background: "#020617",
-            color: "white",
-          }}
-        />
-      </div>
-
-            {mySide && game && (
-        <div style={{ marginTop: "0.5rem" }}>
-          <span>You are </span>
-          {(() => {
-            const sideColors = getSideColors(game.id);
-            const color =
-              mySide === "Player1"
-                ? sideColors.Player1
-                : sideColors.Player2;
-            const label =
-              myName.trim() ||
-              sideLabel(mySide, sideColors);
-
-            return (
-              <span
-                style={{
-                  color,
-                  fontWeight: "bold",
-                }}
-              >
-                {label}
-              </span>
-            );
-          })()}
-        </div>
-      )}
-
-      {game && game.status === "Placement" && (
-        <div style={{ marginTop: "0.5rem" }}>
-         <div style={{ marginBottom: "0.25rem" }}>
-            Both players are placing pieces, no turns yet
-          </div>
-          <label style={{ marginRight: "0.5rem" }}>Select piece, </label>
-          <select
-            value={selectedPiece}
-            onChange={(e) => setSelectedPiece(e.target.value)}
-          >
-            <option value="Elephant">Elephant</option>
-            <option value="Tiger">Tiger</option>
-            <option value="Mouse">Mouse</option>
-            <option value="Scorpion">Scorpion</option>
-          </select>
-        </div>
-      )}
-
-      {game && game.status === "InProgress" && (
-        <div style={{ marginTop: "0.5rem" }}>
-          {selectedFrom ? (
-            <span>
-              Moving from, ({selectedFrom.row}, {selectedFrom.col})  click
-              destination
-            </span>
-          ) : (
-            <span>Select one of your pieces to move</span>
+        {/* Left side, board only */}
+        <div style={{ flexShrink: 0 }}>
+          {game && (
+            <BoardView
+              cells={game.cells}
+              onCellClick={handleCellClick}
+              selectedFrom={selectedFrom}
+              player1Flag={game.player1Flag}
+              player2Flag={game.player2Flag}
+              sideColors={getSideColors(game.id)}
+              mySide={mySide}
+            />
           )}
         </div>
-      )}
 
-      {error && (
+        {/* Right side, all non headline text and controls */}
         <div
           style={{
-            background: "#b91c1c",
-            padding: "0.5rem 1rem",
-            borderRadius: "0.5rem",
-            marginTop: "0.5rem",
+            minWidth: "320px",
+            maxWidth: "380px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-start",
+            gap: "0.75rem",
           }}
         >
-          {error}
-        </div>
-      )}
+          <button
+            onClick={handleCreateGame}
+            disabled={loading}
+            style={{
+              padding: "0.5rem 1rem",
+              borderRadius: "0.5rem",
+              border: "none",
+              fontSize: "1rem",
+              cursor: "pointer",
+              background: "#22c55e",
+            }}
+          >
+            {loading ? "Creating..." : "Create new game"}
+          </button>
 
-      {game && (
-        <div style={{ marginTop: "1rem", width: "fit-content" }}>
-          <div style={{ marginBottom: "0.25rem" }}>
-            <strong>Game id: </strong> {game.id}
-          </div>
-        <div style={{ marginBottom: "0.25rem" }}>
-          <strong>Current player: </strong>
-          {(() => {
-            const sideColors = getSideColors(game.id);
-            const color =
-              game.currentPlayer === "Player1"
-                ? sideColors.Player1
-                : game.currentPlayer === "Player2"
-                ? sideColors.Player2
-                : "white";
-
-            const p1Name =
-              (game.player1Name || "").trim() || sideLabel("Player1", sideColors);
-            const p2Name =
-              (game.player2Name || "").trim() || sideLabel("Player2", sideColors);
-
-            const label =
-              game.currentPlayer === "Player1"
-                ? p1Name
-                : game.currentPlayer === "Player2"
-                ? p2Name
-                : sideLabel(game.currentPlayer, sideColors);
-
-            return (
-              <>
-                <span style={{ color }}>{label}</span>
-                {mySide && mySide === game.currentPlayer && (
-                  <span
-                    style={{
-                      marginLeft: "0.5rem",
-                      fontSize: "0.85rem",
-                      opacity: 0.9,
-                    }}
-                  >
-                    (your turn)
-                  </span>
-                )}
-              </>
-            );
-          })()}
-        </div>
-
-          <div style={{ marginBottom: "0.75rem" }}>
-            <strong>Status: </strong> {game.status}
-          </div>
-          {(() => {
-            const sideColors = getSideColors(game.id);
-            const p1Color = sideColors.Player1;
-            const p2Color = sideColors.Player2;
-            const p1Name = (game.player1Name || "").trim() || sideLabel("Player1", sideColors);
-            const p2Name = (game.player2Name || "").trim() || sideLabel("Player2", sideColors);
-
-            return (
-              <div
-                style={{
-                  marginBottom: "0.5rem",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: "1.5rem",
-                  fontSize: "0.9rem",
-                }}
-              >
-                <div>
-                  <span style={{ color: p1Color, fontWeight: "bold" }}>{p1Name}</span>
-                  <span style={{ marginLeft: "0.25rem" }}>bottom (purple side)</span>
-                </div>
-                <div>
-                  <span style={{ color: p2Color, fontWeight: "bold" }}>{p2Name}</span>
-                  <span style={{ marginLeft: "0.25rem" }}>top (yellow side)</span>
-                </div>
-              </div>
-            );
-          })()}
-
-          {game.winner && (() => {
-            const sideColors = getSideColors(game.id);
-            const winnerColor =
-              game.winner === "Player1"
-                ? sideColors.Player1
-                : sideColors.Player2;
-
-            // Get the winning player's real name
-            const winnerName =
-              game.winner === "Player1"
-                ? (game.player1Name?.trim() || "Player 1")
-                : (game.player2Name?.trim() || "Player 2");
-
-            return (
-              <div
-                style={{
-                  marginBottom: "0.75rem",
-                  padding: "0.5rem 1rem",
-                  borderRadius: "0.5rem",
-                  background: "#020617",
-                  border: `2px solid ${winnerColor}`,
-                  color: winnerColor,
-                  fontWeight: "bold",
-                }}
-              >
-                {winnerName} won
-              </div>
-            );
-          })()}
-
-        {(() => {
-          const sideColors = getSideColors(game.id);
-          const remaining = computeRemainingPieces(game, mySide);
-
-          return (
-            <div
+          <div>
+            <input
+              value={joinId}
+              onChange={(e) => setJoinId(e.target.value)}
+              placeholder="Paste game id to join"
               style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: "1.5rem",
-                marginTop: "0.75rem",
+                width: "280px",
+                padding: "0.25rem 0.5rem",
+                borderRadius: "0.375rem",
+                border: "1px solid #4b5563",
+                background: "#020617",
+                color: "white",
+              }}
+            />
+
+            <button
+              onClick={handleJoinGame}
+              style={{
+                marginLeft: "0.5rem",
+                padding: "0.25rem 0.75rem",
+                borderRadius: "0.5rem",
+                border: "none",
+                cursor: "pointer",
+                background: "#38bdf8",
               }}
             >
-              {game.status === "Placement" && mySide && (
-                <PieceCounter remaining={remaining} />
-              )}
+              Join game
+            </button>
+          </div>
 
-              <BoardView
-                cells={game.cells}
-                onCellClick={handleCellClick}
-                selectedFrom={selectedFrom}
-                player1Flag={game.player1Flag}
-                player2Flag={game.player2Flag}
-                sideColors={sideColors}
-                mySide={mySide}
-              />
+          <div>
+            <input
+              value={myName}
+              onChange={(e) => setMyName(e.target.value)}
+              placeholder="Your name"
+              style={{
+                width: "280px",
+                padding: "0.25rem 0.5rem",
+                borderRadius: "0.375rem",
+                border: "1px solid #4b5563",
+                background: "#020617",
+                color: "white",
+              }}
+            />
+          </div>
+
+          {mySide && game && (
+            <div>
+              <span>You are </span>
+              {(() => {
+                const sideColors = getSideColors(game.id);
+                const color =
+                  mySide === "Player1"
+                    ? sideColors.Player1
+                    : sideColors.Player2;
+                const label =
+                  myName.trim() || sideLabel(mySide, sideColors);
+
+                return (
+                  <span
+                    style={{
+                      color,
+                      fontWeight: "bold",
+                    }}
+                  >
+                    {label}
+                  </span>
+                );
+              })()}
             </div>
-          );
-        })()}
+          )}
 
+          {game && game.status === "Placement" && (
+            <div>
+              <div style={{ marginBottom: "0.25rem" }}>
+                Both players are placing pieces, no turns yet
+              </div>
+              <label style={{ marginRight: "0.5rem" }}>Select piece, </label>
+              <select
+                value={selectedPiece}
+                onChange={(e) => setSelectedPiece(e.target.value)}
+              >
+                <option value="Elephant">Elephant</option>
+                <option value="Tiger">Tiger</option>
+                <option value="Mouse">Mouse</option>
+                <option value="Scorpion">Scorpion</option>
+              </select>
+            </div>
+          )}
+
+          {game && game.status === "InProgress" && (
+            <div>
+              {selectedFrom ? (
+                <span>
+                  Moving from, ({selectedFrom.row}, {selectedFrom.col})  click
+                  destination
+                </span>
+              ) : (
+                <span>Select one of your pieces to move</span>
+              )}
+            </div>
+          )}
+
+          {error && (
+            <div
+              style={{
+                background: "#b91c1c",
+                padding: "0.5rem 1rem",
+                borderRadius: "0.5rem",
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          {game && (
+            <>
+              <div>
+                <strong>Game id: </strong> {game.id}
+              </div>
+
+              <div>
+                <strong>Current player: </strong>
+                {(() => {
+                  const sideColors = getSideColors(game.id);
+                  const color =
+                    game.currentPlayer === "Player1"
+                      ? sideColors.Player1
+                      : game.currentPlayer === "Player2"
+                      ? sideColors.Player2
+                      : "white";
+
+                  const p1Name =
+                    (game.player1Name || "").trim() ||
+                    sideLabel("Player1", sideColors);
+                  const p2Name =
+                    (game.player2Name || "").trim() ||
+                    sideLabel("Player2", sideColors);
+
+                  const label =
+                    game.currentPlayer === "Player1"
+                      ? p1Name
+                      : game.currentPlayer === "Player2"
+                      ? p2Name
+                      : sideLabel(game.currentPlayer, sideColors);
+
+                  return (
+                    <>
+                      <span style={{ color }}>{label}</span>
+                      {mySide && mySide === game.currentPlayer && (
+                        <span
+                          style={{
+                            marginLeft: "0.5rem",
+                            fontSize: "0.85rem",
+                            opacity: 0.9,
+                          }}
+                        >
+                          (your turn)
+                        </span>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+
+              <div>
+                <strong>Status: </strong> {game.status}
+              </div>
+
+              {(() => {
+                const sideColors = getSideColors(game.id);
+                const p1Color = sideColors.Player1;
+                const p2Color = sideColors.Player2;
+                const p1Name =
+                  (game.player1Name || "").trim() ||
+                  sideLabel("Player1", sideColors);
+                const p2Name =
+                  (game.player2Name || "").trim() ||
+                  sideLabel("Player2", sideColors);
+
+                return (
+                  <div
+                    style={{
+                      marginBottom: "0.5rem",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: "1.5rem",
+                      fontSize: "0.9rem",
+                    }}
+                  >
+                    <div>
+                      <span
+                        style={{ color: p1Color, fontWeight: "bold" }}
+                      >
+                        {p1Name}
+                      </span>
+                      <span style={{ marginLeft: "0.25rem" }}>
+                        bottom (purple side)
+                      </span>
+                    </div>
+                    <div>
+                      <span
+                        style={{ color: p2Color, fontWeight: "bold" }}
+                      >
+                        {p2Name}
+                      </span>
+                      <span style={{ marginLeft: "0.25rem" }}>
+                        top (yellow side)
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {game.winner &&
+                (() => {
+                  const sideColors = getSideColors(game.id);
+                  const winnerColor =
+                    game.winner === "Player1"
+                      ? sideColors.Player1
+                      : sideColors.Player2;
+
+                  // Get the winning player's real name
+                  const winnerName =
+                    game.winner === "Player1"
+                      ? game.player1Name?.trim() || "Player 1"
+                      : game.player2Name?.trim() || "Player 2";
+
+                  return (
+                    <div
+                      style={{
+                        marginBottom: "0.75rem",
+                        padding: "0.5rem 1rem",
+                        borderRadius: "0.5rem",
+                        background: "#020617",
+                        border: `2px solid ${winnerColor}`,
+                        color: winnerColor,
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {winnerName} won
+                    </div>
+                  );
+                })()}
+
+              {game.status === "Placement" && mySide && (
+                <PieceCounter remaining={computeRemainingPieces(game, mySide)} />
+              )}
+            </>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -648,7 +703,7 @@ function Hearts({ lives }) {
       style={{
         fontSize: "0.7rem",
         marginTop: 2,
-        color: "#ef4444", 
+        color: "#ef4444",
       }}
     >
       {hearts}
@@ -693,11 +748,19 @@ function PieceCounter({ remaining }) {
   );
 }
 
-function BoardView({ cells, onCellClick, selectedFrom, player1Flag, player2Flag, sideColors, mySide}) {
+function BoardView({
+  cells,
+  onCellClick,
+  selectedFrom,
+  player1Flag,
+  player2Flag,
+  sideColors,
+  mySide,
+}) {
   if (!cells) return null;
 
   const size = cells.length;
-  const cellSize = 40;
+  const cellSize = 80; 
   const gap = 4;
   const padding = 6;
 
@@ -708,10 +771,9 @@ function BoardView({ cells, onCellClick, selectedFrom, player1Flag, player2Flag,
   const player1Color = sideColors?.Player1 ?? COLOR_PURPLE;
   const player2Color = sideColors?.Player2 ?? COLOR_YELLOW;
 
-
   // home positions, middle of first / last row
   const player1Home = { row: size - 1, col: Math.floor(size / 2) }; // bottom middle
-  const player2Home = { row: 0, col: Math.floor(size / 2) };        // top middle
+  const player2Home = { row: 0, col: Math.floor(size / 2) }; // top middle
 
   return (
     <div
@@ -742,8 +804,8 @@ function BoardView({ cells, onCellClick, selectedFrom, player1Flag, player2Flag,
             // background based on owner color
             const bg = cell
               ? isP1
-                ? "#4c1d95" //purple for Player1
-                : "#c9cf1cff" //yellow for Player2
+                ? "#4c1d95" // darker purple for Player1
+                : "#d9df13ff" // darker yellow brown for Player2
               : "#020617";
 
             const borderColor = isSelected ? "#ffffff" : "#1f2937";
@@ -792,14 +854,14 @@ function BoardView({ cells, onCellClick, selectedFrom, player1Flag, player2Flag,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: "1.1rem",
+                  fontSize: "1.4rem",
                   border: `${borderWidth} solid ${borderColor}`,
                   background: bg,
                   boxShadow: isSelected
                     ? "0 0 10px rgba(255,255,255,0.9)"
                     : cell
-                      ? "0 0 6px rgba(15,23,42,0.6)"
-                      : "0 0 2px rgba(15,23,42,0.4)",
+                    ? "0 0 6px rgba(15,23,42,0.6)"
+                    : "0 0 2px rgba(15,23,42,0.4)",
                   cursor: "pointer",
                   position: "relative",
                   color: "white",
@@ -814,21 +876,46 @@ function BoardView({ cells, onCellClick, selectedFrom, player1Flag, player2Flag,
                       lineHeight: 1,
                     }}
                   >
-                    <span>{text}</span>
+                  {(() => {
+                    const isRevealed = text !== "";
+                    if (!isRevealed) return <span>{text}</span>;
+
+                    const img =
+                      PIECE_IMAGES[cell.owner]?.[cell.type];
+
+                    if (img) {
+                      return (
+                        <img
+                          src={img}
+                          alt={`${cell.owner} ${cell.type}`}
+                          style={{
+                            width: "70%",
+                            height: "70%",
+                            objectFit: "contain",
+                          }}
+                        />
+                      );
+                    }
+
+                    return <span>{text}</span>;
+                  })()}
+
                     <Hearts lives={cell.lives} />
                   </div>
                 ) : (
                   <span>{text}</span>
                 )}
 
+
+
                 {/* flag being carried by a piece */}
                 {carriedFlagColor && (
                   <span
                     style={{
                       position: "absolute",
-                      top: 2,
-                      right: 2,
-                      fontSize: "0.85rem",
+                      top: 4,
+                      right: 4,
+                      fontSize: "1rem",
                       color: carriedFlagColor,
                       textShadow: "0 0 2px black",
                     }}
@@ -842,9 +929,9 @@ function BoardView({ cells, onCellClick, selectedFrom, player1Flag, player2Flag,
                   <span
                     style={{
                       position: "absolute",
-                      bottom: 2,
-                      right: 2,
-                      fontSize: "0.85rem",
+                      bottom: 4,
+                      right: 4,
+                      fontSize: "1rem",
                       color: groundFlagColor,
                       textShadow: "0 0 2px black",
                     }}
@@ -856,6 +943,8 @@ function BoardView({ cells, onCellClick, selectedFrom, player1Flag, player2Flag,
             );
           })
         )}
+
+        
       </div>
 
       {/* Player2 home flag on ground, show ABOVE the board only while at home */}
