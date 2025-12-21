@@ -742,8 +742,8 @@ function BoardView({ cells, onCellClick, selectedFrom, player1Flag, player2Flag,
             // background based on owner color
             const bg = cell
               ? isP1
-                ? "#4c1d95" // darker purple for Player1
-                : "#d9df13ff" // darker yellow brown for Player2
+                ? "#4c1d95" //purple for Player1
+                : "#c9cf1cff" //yellow for Player2
               : "#020617";
 
             const borderColor = isSelected ? "#ffffff" : "#1f2937";
