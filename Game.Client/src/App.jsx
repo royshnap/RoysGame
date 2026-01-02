@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import * as signalR from "@microsoft/signalr";
 import { createGame, placePiece, movePiece, getGame, registerPlayer } from "./api";
@@ -11,6 +10,7 @@ import PurpleTiger from "./assets/purpleTiger.png";
 import YellowTiger from "./assets/yellowTiger.png";
 import PurpleScorpion from "./assets/purpleScorpion.png";
 import YellowScorpion from "./assets/yellowScorpion.png";
+import FightVideoFile from "./assets/purpleElephantYellowTigerFight.mp4"; 
 
 const COLOR_PURPLE = "#a855f7";
 const COLOR_YELLOW = "#facc15";
@@ -37,32 +37,27 @@ const PIECE_IMAGES = {
   },
 };
 
-function computeRemainingPieces(game, mySide) {
-  // default: full pool
-  const remaining = { ...INITIAL_PIECES };
+const VIDEO_MAP = {
+  PurpleElephantVsYellowTiger: FightVideoFile,
+};
 
-  if (!game || !game.cells || !mySide) {
-    return remaining;
-  }
+function computeRemainingPieces(game, mySide) {
+  const remaining = { ...INITIAL_PIECES };
+  if (!game || !game.cells || !mySide) return remaining;
 
   for (let r = 0; r < game.cells.length; r++) {
     for (let c = 0; c < game.cells[r].length; c++) {
       const cell = game.cells[r][c];
       if (!cell) continue;
-
-      // count only my pieces in the pool types
       if (cell.owner === mySide && remaining[cell.type] != null) {
         remaining[cell.type] = Math.max(0, remaining[cell.type] - 1);
       }
     }
   }
-
   return remaining;
 }
 
 function getSideColors(gameId) {
-  // top side (Player2) is always yellow
-  // bottom side (Player1) is always purple
   return {
     Player1: COLOR_PURPLE, // bottom
     Player2: COLOR_YELLOW, // top
@@ -70,20 +65,13 @@ function getSideColors(gameId) {
 }
 
 function getAssignedSide(gameId, role) {
-  if (!gameId) return null; // role is "host" or "guest"
-
-  // simple deterministic decision based on game id
+  if (!gameId) return null;
   const hex = gameId.replace(/-/g, "");
   const first = parseInt(hex[0], 16);
   const hostIsPlayer1 = first % 2 === 0;
 
-  if (role === "host") {
-    return hostIsPlayer1 ? "Player1" : "Player2";
-  }
-  if (role === "guest") {
-    return hostIsPlayer1 ? "Player2" : "Player1";
-  }
-
+  if (role === "host") return hostIsPlayer1 ? "Player1" : "Player2";
+  if (role === "guest") return hostIsPlayer1 ? "Player2" : "Player1";
   return null;
 }
 
@@ -96,12 +84,10 @@ function sideLabel(side, sideColors) {
 
 function cellDisplay(cell, mySide) {
   if (!cell) return "·";
-
-  const owner = cell.owner; // "Player1" or "Player2"
-  const r1 = cell.revealedToPlayer1; // booleans from server
+  const owner = cell.owner;
+  const r1 = cell.revealedToPlayer1;
   const r2 = cell.revealedToPlayer2;
 
-  // opponent piece that is not revealed to me, hide its letter
   if (
     mySide &&
     owner &&
@@ -111,9 +97,7 @@ function cellDisplay(cell, mySide) {
   ) {
     return "";
   }
-
   if (!cell.type) return "";
-
   const letter = cell.type[0];
   return letter.toUpperCase();
 }
@@ -126,11 +110,13 @@ function App() {
   const [selectedFrom, setSelectedFrom] = useState(null);
   const [joinId, setJoinId] = useState("");
 
-  const [mySide, setMySide] = useState(null); // "Player1" or "Player2"
-  const [myName, setMyName] = useState(""); // local name only
+  const [mySide, setMySide] = useState(null);
+  const [myName, setMyName] = useState("");
   const connectionRef = useRef(null);
 
-  // create SignalR connection once
+  // --- Video State ---
+  const [currentVideo, setCurrentVideo] = useState(null);
+
   useEffect(() => {
     const connection = new signalR.HubConnectionBuilder()
       .withUrl("http://localhost:5000/gamehub")
@@ -140,7 +126,6 @@ function App() {
 
     connectionRef.current = connection;
 
-    // when server broadcasts a game update, replace local state
     connection.on("GameUpdated", (dto) => {
       console.log("GameUpdated from hub", dto);
       setGame(dto);
@@ -160,14 +145,12 @@ function App() {
     };
   }, []);
 
-  // when we have a game id, join that game group on the hub
   useEffect(() => {
     if (!game || !game.id) return;
 
     const connection = connectionRef.current;
     if (!connection) return;
 
-    // if not connected yet, do nothing, the user action will still work via HTTP
     if (connection.state !== signalR.HubConnectionState.Connected) {
       return;
     }
@@ -216,7 +199,7 @@ function App() {
       if (nameToSend) {
         try {
           const updated = await registerPlayer(data.id, side, nameToSend);
-          setGame(updated); // update game to include Player1Name / Player2Name
+          setGame(updated); 
         } catch (e) {
           console.error("registerPlayer (host) failed, ", e);
         }
@@ -268,18 +251,16 @@ function App() {
       return;
     }
 
-    // Placement phase, both players can place, but only on their own side
+    // --- Placement Phase ---
     if (game.status === "Placement") {
       const size = game.cells.length;
 
       if (mySide === "Player1") {
-        // Player1 is bottom side, last two rows
         if (row < size - 2) {
           setError("You can place pieces only on your two bottom rows");
           return;
         }
       } else if (mySide === "Player2") {
-        // Player2 is top side, first two rows
         if (row > 1) {
           setError("You can place pieces only on your two top rows");
           return;
@@ -297,7 +278,7 @@ function App() {
       return;
     }
 
-    // In progress phase, now turns matter
+    // --- In Progress Phase ---
     if (game.status === "InProgress") {
       if (mySide && mySide !== game.currentPlayer) {
         setError("It is not your turn");
@@ -306,6 +287,7 @@ function App() {
 
       const cell = game.cells[row]?.[col];
 
+      // 1. If nothing selected yet, select a piece
       if (!selectedFrom) {
         if (!cell) {
           setError("Select one of your own pieces first");
@@ -321,18 +303,56 @@ function App() {
         return;
       }
 
+      // 2. If clicking the same piece, deselect
       if (selectedFrom.row === row && selectedFrom.col === col) {
         setSelectedFrom(null);
         setError("");
         return;
       }
 
+      // 3. If clicking another own piece, switch selection
       if (cell && cell.owner === game.currentPlayer) {
         setSelectedFrom({ row, col });
         setError("");
         return;
       }
 
+      // 4. ATTEMPTING MOVE (Empty cell or Enemy cell)
+      
+      // --- VIDEO DETECTION LOGIC STARTS HERE ---
+      // We check what piece is attacking (selectedFrom) and what is defending (cell at row,col)
+      const attacker = game.cells[selectedFrom.row][selectedFrom.col];
+      const defender = game.cells[row][col];
+
+      if (attacker && defender && attacker.owner !== defender.owner) {
+          // It is an attack!
+          
+          // Case A: Purple Elephant (Attacker) vs Yellow Tiger (Defender)
+          if (
+              attacker.owner === "Player1" && attacker.type === "Elephant" &&
+              defender.owner === "Player2" && defender.type === "Tiger"
+          ) {
+               // Check if the Defender (Tiger) is currently HIDDEN to Player 1
+               // Note: Player 1 is Purple.
+               if (!defender.revealedToPlayer1) {
+                   setCurrentVideo(VIDEO_MAP.PurpleElephantVsYellowTiger);
+               }
+          }
+
+          // Case B: Yellow Tiger (Attacker) vs Purple Elephant (Defender)
+          if (
+            attacker.owner === "Player2" && attacker.type === "Tiger" &&
+            defender.owner === "Player1" && defender.type === "Elephant"
+          ) {
+             // Check if the Attacker (Tiger) is currently HIDDEN to Player 1
+             if (!attacker.revealedToPlayer1) {
+                 setCurrentVideo(VIDEO_MAP.PurpleElephantVsYellowTiger);
+             }
+          }
+      }
+      // --- VIDEO DETECTION LOGIC ENDS ---
+
+      // Execute the move
       try {
         setError("");
         const updated = await movePiece(
@@ -365,11 +385,50 @@ function App() {
         fontFamily: "system-ui, sans-serif",
         background: "#057137ff",
         color: "white",
+        position: "relative"
       }}
     >
+        {/* --- Video Overlay --- */}
+        {currentVideo && (
+            <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                backgroundColor: 'rgba(0,0,0,0.8)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 9999
+            }}>
+                <video 
+                    width="800" 
+                    autoPlay 
+                    controls
+                    onEnded={() => setCurrentVideo(null)}
+                >
+                    <source src={currentVideo} type="video/mp4" />
+                    Your browser does not support the video tag.
+                </video>
+                <button 
+                    onClick={() => setCurrentVideo(null)}
+                    style={{
+                        position: 'absolute',
+                        top: 20,
+                        right: 20,
+                        padding: '10px 20px',
+                        fontSize: '16px',
+                        cursor: 'pointer'
+                    }}
+                >
+                    Close
+                </button>
+            </div>
+        )}
+
       <h1>Jungle Catch</h1>
 
-      {/* Layout, board on left, all other text and controls on the right */}
       <div
         style={{
           marginTop: "1rem",
@@ -382,7 +441,6 @@ function App() {
           maxWidth: "1100px",
         }}
       >
-        {/* Left side, board only */}
         <div style={{ flexShrink: 0 }}>
           {game && (
             <BoardView
@@ -397,7 +455,6 @@ function App() {
           )}
         </div>
 
-        {/* Right side, all non headline text and controls */}
         <div
           style={{
             minWidth: "320px",
@@ -645,7 +702,6 @@ function App() {
                       ? sideColors.Player1
                       : sideColors.Player2;
 
-                  // Get the winning player's real name
                   const winnerName =
                     game.winner === "Player1"
                       ? game.player1Name?.trim() || "Player 1"
@@ -767,13 +823,11 @@ function BoardView({
   const boardWidth = padding * 2 + size * cellSize + (size - 1) * gap;
   const boardHeight = padding * 2 + size * cellSize + (size - 1) * gap;
 
-  // Player colors from mapping (fallback to defaults)
   const player1Color = sideColors?.Player1 ?? COLOR_PURPLE;
   const player2Color = sideColors?.Player2 ?? COLOR_YELLOW;
 
-  // home positions, middle of first / last row
-  const player1Home = { row: size - 1, col: Math.floor(size / 2) }; // bottom middle
-  const player2Home = { row: 0, col: Math.floor(size / 2) }; // top middle
+  const player1Home = { row: size - 1, col: Math.floor(size / 2) }; 
+  const player2Home = { row: 0, col: Math.floor(size / 2) }; 
 
   return (
     <div
@@ -801,24 +855,21 @@ function BoardView({
             const isSelected =
               selectedFrom && selectedFrom.row === r && selectedFrom.col === c;
 
-            // background based on owner color
             const bg = cell
               ? isP1
-                ? "#4c1d95" // darker purple for Player1
-                : "#d9df13ff" // darker yellow brown for Player2
+                ? "#4c1d95" 
+                : "#d9df13ff" 
               : "#020617";
 
             const borderColor = isSelected ? "#ffffff" : "#1f2937";
             const borderWidth = isSelected ? "3px" : "1px";
 
-            // carried enemy flag color
             let carriedFlagColor = null;
             if (cell && cell.hasEnemyFlag) {
               carriedFlagColor =
                 cell.owner === "Player1" ? player2Color : player1Color;
             }
 
-            // ground flag in this cell (dropped or sitting), but NOT at home
             let groundFlagColor = null;
             const isP1FlagHere =
               player1Flag &&
@@ -836,7 +887,6 @@ function BoardView({
             const isP2HomeHere =
               r === player2Home.row && c === player2Home.col;
 
-            // only show ground flag inside the cell when it is not at home
             if (isP1FlagHere && !isP1HomeHere) {
               groundFlagColor = player1Color;
             } else if (isP2FlagHere && !isP2HomeHere) {
@@ -906,9 +956,6 @@ function BoardView({
                   <span>{text}</span>
                 )}
 
-
-
-                {/* flag being carried by a piece */}
                 {carriedFlagColor && (
                   <span
                     style={{
@@ -924,7 +971,6 @@ function BoardView({
                   </span>
                 )}
 
-                {/* ground flag sitting in this cell (after drop), not at home */}
                 {groundFlagColor && (
                   <span
                     style={{
@@ -943,11 +989,8 @@ function BoardView({
             );
           })
         )}
-
-        
       </div>
 
-      {/* Player2 home flag on ground, show ABOVE the board only while at home */}
       {player2Flag &&
         player2Flag.onBoard &&
         player2Flag.row === player2Home.row &&
@@ -970,7 +1013,6 @@ function BoardView({
           </span>
         )}
 
-      {/* Player1 home flag on ground, show BELOW the board only while at home */}
       {player1Flag &&
         player1Flag.onBoard &&
         player1Flag.row === player1Home.row &&
